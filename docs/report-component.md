@@ -7,7 +7,7 @@
 
   Components can be repositioned and resized on the report. If you'd like to stack/overlap components, z index field can be used to control the stacking order.
 
-  > The selected component can be moved by using arrow key in order to provide more precise control.
+  > The selected component can be moved by pressing shift + arrow key in order to provide more precise control.
 
 * Border
 * Content background color 
@@ -121,6 +121,21 @@ WHERE 1 = 1
 ORDER BY created_date ASC;
 ```
 
+## Default parameter value
+
+The default parameter value can be set in filter. It is used in the dynamic query when the report is first initialized.
+
+
+| Filter       | Format              | Example       |
+| ------------ | ------------------- | ------------- |
+| Slicer       | string1,string2,... | bottle,glass  |
+| Single Value | string              | cup           |
+| Date Picker  | YYYY-MM-DD          | 2019-01-01    |
+
+> Slicer supports a list of default selections. Each value should be separated by comma.
+
+> Date Picker has to follow the YYYY-MM-DD format.
+
 ## Dynamic SQL query with parameters
 
 To use this feature, you would need to create at least one filter and one chart component. Here is how it works.
@@ -197,7 +212,7 @@ Drill through is used to navigate from one component in a Report to another Repo
 
 ## Export CSV
 
-Click export button at the top right corner of the chart to export chart data as CSV file.
+Hover the cursor over the top right corner of the chart and click export button to export chart data as CSV file.
 
 ![export csv](_images/screenshots/export_csv.jpg)
 

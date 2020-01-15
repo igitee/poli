@@ -1,14 +1,15 @@
 
-
+DROP TABLE IF EXISTS p_shared_report;
+DROP TABLE IF EXISTS p_user_favourite;
 DROP TABLE IF EXISTS p_group_report;
 DROP TABLE IF EXISTS p_component;
 DROP TABLE IF EXISTS p_report;
 DROP TABLE IF EXISTS p_datasource;
 DROP TABLE IF EXISTS p_user_attribute;
+DROP TABLE IF EXISTS p_canned_report;
 DROP TABLE IF EXISTS p_group_user;
 DROP TABLE IF EXISTS p_user;
 DROP TABLE IF EXISTS p_group;
-DROP TABLE IF EXISTS p_canned_report;
 
 CREATE TABLE
 IF NOT EXISTS p_datasource (
@@ -24,8 +25,9 @@ IF NOT EXISTS p_datasource (
 CREATE TABLE
 IF NOT EXISTS p_report (
     id INTEGER NOT NULL PRIMARY KEY,
-    name TEXT NOT NULL,
-    style TEXT
+    name TEXT NOT NULL UNIQUE,
+    style TEXT,
+    project TEXT
 );
 
 CREATE TABLE
@@ -44,8 +46,7 @@ IF NOT EXISTS p_component (
     data TEXT,
     drill_through TEXT,
     style TEXT,
-    FOREIGN KEY (report_id) REFERENCES p_report(id),
-    FOREIGN KEY (datasource_id) REFERENCES p_datasource(id)
+    FOREIGN KEY (report_id) REFERENCES p_report(id)
 );
 
 CREATE TABLE
@@ -85,7 +86,6 @@ IF NOT EXISTS p_group_report (
     FOREIGN KEY (group_id) REFERENCES p_group(id)
 );
 
--- table added in v0.7.0
 CREATE TABLE
 IF NOT EXISTS p_canned_report (
     id INTEGER NOT NULL PRIMARY KEY,
@@ -96,16 +96,36 @@ IF NOT EXISTS p_canned_report (
     FOREIGN KEY (user_id) REFERENCES p_user(id)
 );
 
--- table added in v0.9.0
 CREATE TABLE
 IF NOT EXISTS p_user_attribute (
     user_id INTEGER NOT NULL,
-    attr_key TEXT,
+    attr_key TEXT NOT NULL,
     attr_value TEXT,
     FOREIGN KEY (user_id) REFERENCES p_user(id)
 );
 
-CREATE UNIQUE INDEX p_report_unique_name_index ON p_report(name);
+-- v0.10.0 new tables
+CREATE TABLE
+IF NOT EXISTS p_user_favourite (
+    user_id INTEGER NOT NULL,
+    report_id INTEGER NOT NULL,
+    PRIMARY KEY (user_id, report_id),
+    FOREIGN KEY (user_id) REFERENCES p_user(id),
+    FOREIGN KEY (report_id) REFERENCES p_report(id)
+);
+
+CREATE TABLE
+IF NOT EXISTS p_shared_report (
+    id INTEGER NOT NULL PRIMARY KEY,
+    share_key TEXT NOT NULL,
+    report_id INTEGER NOT NULL,
+    report_type TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    expired_by INTEGER NOT NULL,
+    FOREIGN KEY (report_id) REFERENCES p_report(id),
+    FOREIGN KEY (user_id) REFERENCES p_user(id)
+);
 
 -- In test, set admin password.
 INSERT INTO p_user(username, password, sys_role)

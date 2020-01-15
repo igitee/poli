@@ -1,5 +1,82 @@
 # Change Logs
 
+## v0.11.0
+
+### New Features
+- Support export report to PDF. 
+  ```sh
+  -- The export server is optional and placed under export-server folder. 
+  -- New configuration value needs to be specified in the poli.properties:
+  -- poli.export-server-url=http://127.0.0.1:6689/pdf
+  -- Start the export server.
+  node poli-export-server.js
+  ```
+- Add new Spanish translation #41.
+
+### Improvements
+- Improve the build scripts and Dockerfile.
+- Add "Run on Google Cloud" button.
+- Add a more options button to group buttons on report page.
+
+### Bug Fixes
+- Fix the issue that the query returns column name instead of column alias.
+
+## v0.10.1
+
+### Improvements
+- Set default JDBC fetch size to 100.
+
+### Bug Fixes
+- Fix multiple issues that affect shared report to work properly.
+
+## v0.10.0
+
+### Breaking Changes & Upgrade Steps
+  ```sh
+  -- Backup your database before you make changes to it
+  ./sqlite3 poli.db
+
+  -- File is located at upgrade/poli_upgrade_v0.10.0.sql
+  sqlite> .read poli_upgrade_v0.10.0.sql
+  ```
+
+  Check upgrade for more details.
+
+### New Features
+- A shared report URL can be generated with an expiration date defined through the share button. The shared report history can be viewed and managed under the event menu.
+- Reports can be grouped into projects which are collapsible on the side report menu.
+- Reports can be marked as farourite for quick access through the favourite button.
+- Allow to set default parameter value for filter component.
+- For Line/Bar/Area charts, the margin of the chart grid can be adjusted.
+
+### Improvements
+- Using $apiKey in the URL doesn't allow access to the report page but only the full screen page. The full screen report can still be embedded into another application and the report name and other parameters can be changed on the fly.
+- UI is refined to provide a cleaner user experience.
+- Add samples in docuemnt on how to setup data source for MySQL and SQL Server.
+- Add new upgrade steps for windows/linux.
+
+
+### Bug Fixes
+- Fix an issue that the full screen page doesn't display locale language.
+- Fix an issue that the search input on report page doesn't display correctly if the scroll bar shows.
+
+## v0.9.1
+
+### Improvements
+- Now press shift + arrow key to move component instead of pressing arrow key only.
+- Add a pop up that allows renaming the CSV file before it is exported.
+- Support multiple SQL statements in the query editor. Add a new global configuration value to enable/disable this feature. (poli.allow-multiple-query-statements)
+- Set default maximum-query-records to unlimited.
+- Add new script to build the release folder.
+
+### Bug Fixes
+- Fix an issue that heatmap displays wrong max and min value.
+- Fix the wrong column types in schema-postgresql.sql.
+- Fix the exception thrown from GeneratedKeyHolder when using PostgreSQL as data store.
+- Fix an issue when hover over the CSV button in a titleless table, the cursor flips between pointer and resizer.
+- Fix an issue that the URL parameters are not used in the query when the report is initialized.
+- Fix an issue that accessing the full screen view will direct the user to the login page when remember me is not checked.
+
 ## v0.9.0
 
 ### Breaking Changes & Upgrade Steps
@@ -13,7 +90,6 @@
   ```
 
 ### New Features
-
 - User attributes can be defined at per user level and be used in dynamic query to support row level security.
 - The selected component can be moved by using arrow key in order to provide more precise control.
 - New option to enable/disable auto filtering on report level.
@@ -34,9 +110,8 @@
 - Fix an issue that the auth filter may throw an NPE.
 
 ### Improvements
-
-* Allow Image to display in full scale.
-* Add a new flag "Show All Axis Labels" for charts that support axis label to force the chart to display all labels.
+- Allow Image to display in full scale.
+- Add a new flag "Show All Axis Labels" for charts that support axis label to force the chart to display all labels.
 
 ## v0.8.0
 

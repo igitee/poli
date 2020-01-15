@@ -8,10 +8,13 @@ import {
   faTv, faPlug, faUser, faSignOutAlt, faCompress, faExpandArrowsAlt,
   faFileExport, faFileCsv, faCircleNotch, faSearch, faSave, 
   faCalendarPlus, faFilter, faExternalLinkAlt, faCheckSquare, 
-  faLongArrowAltRight, faWrench, faArchive
+  faLongArrowAltRight, faWrench, faArchive, faFileDownload,
+  faHeart, faShareSquare, faSearchLocation, faClipboard, 
+  faAngleRight, faAngleDown, faFilePdf, faEllipsisH
 } from '@fortawesome/free-solid-svg-icons';
 import {
-  faSquare as farSquare
+  faSquare as farSquare,
+  faHeart as farHeart
 } from '@fortawesome/free-regular-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { withTranslation } from 'react-i18next';
@@ -30,7 +33,9 @@ library.add(faChalkboard, faDatabase, faUsersCog, faPlus, faTimes,
   faTv, faPlug, faUser, faSignOutAlt, faCompress, faExpandArrowsAlt,
   faFileExport, faFileCsv, faCircleNotch, faSearch, faSave, 
   faCalendarPlus, faFilter, faExternalLinkAlt, faCheckSquare,
-  faLongArrowAltRight, faWrench, farSquare, faArchive
+  faLongArrowAltRight, faWrench, farSquare, faArchive, faFileDownload,
+  faHeart, farHeart, faShareSquare, faSearchLocation, faClipboard,
+  faAngleRight, faAngleDown, faFilePdf, faEllipsisH
 );
 
 class App extends React.Component {
@@ -46,6 +51,7 @@ class App extends React.Component {
 
   componentDidMount() {
     this.configAxiosInterceptors();
+    this.configLocaleLanguage();
 
     const pathname = this.props.location.pathname;
     const search = this.props.location.search;
@@ -53,51 +59,63 @@ class App extends React.Component {
 
     const params = new URLSearchParams(search);
     const apiKey = params.get('$apiKey');
-    // Check if the page is using api key to authenticate first.
-    if (apiKey != null) {
-      axios.defaults.headers.common = {
-        "Poli-Api-Key": apiKey
-      };
-      const loginRequest = {
-        apiKey: apiKey
-      };
-      this.setState({
-        isAuthorizing: true
-      }, () => {
-        axios.post('/auth/login/apikey', loginRequest)
-          .then(res => {
-            this.handleLoginResponse(res.data, currentPath);
-          });
-      });
-      return;
-    }
+    const shareKey = params.get('$shareKey');
+    const isFullScreenView = pathname.indexOf('/workspace/report/fullscreen') !== -1;
+    if (isFullScreenView) {
+      // Only allow using ApiKey in fullscreen view.
+      if (apiKey !== null) {
+        delete axios.defaults.headers.common['Poli-Share-Key'];
 
+        const loginRequest = {
+          apiKey: apiKey
+        };
+        this.setState({
+          isAuthorizing: true
+        }, () => {
+          axios.post('/auth/login/apikey', loginRequest)
+            .then(res => {
+              axios.defaults.headers.common = {
+                "Poli-Api-Key": apiKey
+              };
+              this.handleLoginResponse(res.data, currentPath);
+            });
+        });
+        return;   
+      } else if (shareKey !== null) {
+        delete axios.defaults.headers.common['Poli-Api-Key'];
+
+        // Only allow using ShareKey in fullscreen view.
+        const loginRequest = {
+          shareKey: shareKey
+        };
+        this.setState({
+          isAuthorizing: true
+        }, () => {
+          axios.post('/auth/login/sharekey', loginRequest)
+            .then(res => {
+              axios.defaults.headers.common = {
+                "Poli-Share-Key": shareKey
+              };
+              this.handleLoginResponse(res.data, currentPath);
+            });
+        });
+        return;
+      }
+    } else {
+      delete axios.defaults.headers.common['Poli-Api-Key'];
+      delete axios.defaults.headers.common['Poli-Share-Key'];
+    }
+    
     const rememberMeConfig = localStorage.getItem(Constants.REMEMBERME);
-    const rememberMe = rememberMeConfig && rememberMeConfig === Constants.YES;
+    const rememberMe = (rememberMeConfig && rememberMeConfig === Constants.YES) || isFullScreenView;
 
     const {
-      sysRole,
-      localeLanguage
+      sysRole
     } = this.state;
 
     let isAuthenticated = false;
     if (sysRole) {
       isAuthenticated = true;
-    }
-
-    if (!localeLanguage) {
-      axios.get('/info/general')
-        .then(res => {
-          const info = res.data;
-          const {
-            localeLanguage
-          } = info;
-          const { i18n } = this.props;
-          i18n.changeLanguage(String(localeLanguage));
-          this.setState({
-            localeLanguage: localeLanguage
-          });
-        });
     }
 
     if (!isAuthenticated && rememberMe) {
@@ -163,6 +181,28 @@ class App extends React.Component {
         }
         return Promise.reject(error);
     });
+  }
+
+  configLocaleLanguage = () => {
+    const {
+      localeLanguage
+    } = this.state;
+    if (localeLanguage) {
+      return;
+    }
+
+    axios.get('/info/general')
+      .then(res => {
+        const info = res.data;
+        const {
+          localeLanguage
+        } = info;
+        const { i18n } = this.props;
+        i18n.changeLanguage(String(localeLanguage));
+        this.setState({
+          localeLanguage: localeLanguage
+        });
+      });
   }
    
   render() {

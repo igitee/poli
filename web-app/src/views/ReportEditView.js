@@ -13,10 +13,13 @@ import Modal from '../components/Modal';
 import ColorPicker from '../components/ColorPicker';
 import Checkbox from '../components/Checkbox';
 import Toast from '../components/Toast';
+import DatePicker from '../components/filters/DatePicker';
+import DropdownDialog from '../components/DropdownDialog';
 
 import * as Constants from '../api/Constants';
 import * as Util from '../api/Util';
 import './Report.css';
+
 
 
 class ReportEditView extends React.Component {
@@ -25,10 +28,14 @@ class ReportEditView extends React.Component {
     super(props);
     
     this.state = {
+      // Modal
       showComponentEditPanel: false,
       showConfirmDeletionPanel: false,
       showCannedReportPanel: false,
       showControl: true,
+      showSharePanel: false,
+      showExportToPdfPanel: false,
+      showFunctionButtonDialog: false,
       isPendingApplyFilters: false,
       objectToDelete: {},
       isEditMode: false,
@@ -41,11 +48,19 @@ class ReportEditView extends React.Component {
       fromReport: '',
       reportId: 0,
       name: '',
+      project: '',
       style: {},
+      isFavourite: false,
       reportType: '',
       reportViewWidth: 1000,
       cannedReportName: '',
-      cannedReportData: {}
+      cannedReportData: {},
+      // share url
+      expiredBy: new Date(),
+      shareUrl: '',
+      // export to pdf
+      pdfName: '',
+      isExporting: false
     }
 
     this.componentViewPanel = React.createRef();
@@ -65,8 +80,12 @@ class ReportEditView extends React.Component {
       const url = this.props.location.search;
       const params = new URLSearchParams(url);
       const reportName = params.get('$toReport');
+      const shareKey = params.get('$shareKey');
       if (reportName !== null) {
         this.loadViewByReportName();
+        return;
+      } else if (shareKey !== null) {
+        this.loadViewByShareKey();
         return;
       }
     }
@@ -94,7 +113,9 @@ class ReportEditView extends React.Component {
                 reportId: report.id,
                 name: report.name,
                 style: report.style,
-                reportType: reportType
+                reportType: reportType,
+                isFavourite: report.isFavourite,
+                project: report.project
               }, () => {
                 this.refresh();
               });
@@ -157,7 +178,7 @@ class ReportEditView extends React.Component {
     const params = new URLSearchParams(url);
 
     let showControl = params.get('$showControl');
-    showControl = showControl == null ? true : (showControl ? true: false);
+    showControl = showControl === null ? true : showControl === 'true';
     const fromReport = params.get('$fromReport');
     const reportName = params.get('$toReport');
     let reportType = params.get('$reportType');
@@ -182,16 +203,43 @@ class ReportEditView extends React.Component {
             style: result.style
           }, () => {
             this.refresh();
-            // When the view is loaded the first time, apply the filters immediately because the url params are available already.
-            this.applyFilters();
           });
         });
     });
   }
 
-  handleInputChange = (event) => {
+  loadViewByShareKey = () => {
+    const url = this.props.location.search;
+    const params = new URLSearchParams(url);
+    const shareKey = params.get('$shareKey');
+    const reportViewWidth = this.getPageWidth();
     this.setState({
-      [event.target.name]: event.target.value
+      isFullScreenView: true,
+      reportViewWidth: reportViewWidth,
+      reportType: Constants.ADHOC
+    }, () => {
+      // MAYBE: support canned report? can only handle Adhoc report for now.
+      axios.get(`/ws/report/sharekey/${shareKey}`)
+        .then(res => {
+          const result = res.data;
+          if (!result) {
+            Toast.showError('The report is no longer available.');
+            return;
+          }
+          this.setState({
+            reportId: result.id,
+            name: result.name,
+            style: result.style
+          }, () => {
+            this.refresh();
+          });
+        });
+    });
+  }
+
+  handleInputChange = (name, value) => {
+    this.setState({
+      [name]: value
     });
   }
 
@@ -234,7 +282,7 @@ class ReportEditView extends React.Component {
     } = this.state;
 
     if (reportType === Constants.ADHOC) {
-      this.componentViewPanel.current.fetchComponents(reportId, reportViewWidth, null);
+      this.componentViewPanel.current.fetchComponents(reportId, reportViewWidth, this.getUrlFilterParams());
     } else if (reportType === Constants.CANNED) {
       const { 
         components = []
@@ -266,6 +314,7 @@ class ReportEditView extends React.Component {
     const {
       reportId,
       name,
+      project,
       style = {}
     } = this.state;
 
@@ -282,6 +331,7 @@ class ReportEditView extends React.Component {
     const report = {
       id: reportId, 
       name: name,
+      project: project,
       style: style
     };
 
@@ -339,6 +389,57 @@ class ReportEditView extends React.Component {
     const { name } = this.state;
     const url = `/workspace/report/fullscreen?$toReport=${name}`;
     window.open(url, '_blank');
+  }
+
+  exportToPdf = () => {
+    const { 
+      reportId,
+      name,
+      style,
+      pdfName
+    } = this.state;
+    const viewWidth = style.isFixedWidth ? style.fixedWidth : 1200;
+    const width = parseInt(viewWidth, 10) + 50;
+    const height = parseInt(style.height, 10) + 50;
+    const exportInfo = {
+      reportId: reportId,
+      reportName: name,
+      width: width,
+      height: height
+    }
+
+    this.setState({ 
+      showExportToPdfPanel: false,
+      isExporting: true
+    });
+
+    axios.post('/ws/report/pdf', exportInfo,
+      {
+        responseType: 'arraybuffer',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/pdf'
+        }
+      })
+      .then(res => {
+        const pdfData = res.data;
+        const filename = pdfName + '.pdf';
+        const blob = new Blob([pdfData]);
+        const link = document.createElement("a");
+        if (link.download !== undefined) { 
+          const url = URL.createObjectURL(blob);
+          link.setAttribute("href", url);
+          link.setAttribute("download", filename);
+          link.style.visibility = 'hidden';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+
+        this.setState({
+          isExporting: false
+        });
+      });
   }
 
   handleStyleValueChange = (name, value) => {
@@ -510,6 +611,76 @@ class ReportEditView extends React.Component {
         this.props.onCannedReportSave();
       });
   }
+  
+  toggleFavourite = () => {
+    const {
+      reportId,
+      isFavourite
+    } = this.state;
+    const status = isFavourite ? 'remove' : 'add';
+
+    axios.post(`/ws/report/favourite/${reportId}/${status}`)
+      .then(res => {
+        this.setState(prevState => ({
+          isFavourite: !prevState.isFavourite
+        }), () => {
+          this.props.onFavouriteChange(reportId, this.state.isFavourite);
+        }); 
+      });
+  }
+
+  openSharePanel = () => {
+    this.setState({
+      showSharePanel: true,
+      shareUrl: '',
+      expiredBy: new Date(),
+    });
+  }
+
+  openExportToPdfPanel = () => {
+    const { name } = this.state;
+    this.setState({
+      showExportToPdfPanel: true,
+      pdfName: name,
+    });
+  }
+
+  generateShareUrl = () => {
+    const {
+      reportId,
+      reportType,
+      expiredBy
+    } = this.state;
+
+    const sharedReport = {
+      reportId: reportId,
+      reportType: reportType,
+      expiredBy: Math.round((expiredBy).getTime())
+    }
+
+    const href = window.location.href;
+    const start = href.indexOf('/poli/workspace');
+    if (start === -1) {
+      Toast.showError('Cannot find poli workspace URL pattern.');
+      return;
+    }
+    const urlPrefix = href.substring(0, start);
+    
+    axios.post('/ws/sharedreport/generate-sharekey', sharedReport)
+      .then(res => {
+        const shareKey = res.data;
+        const shareUrl = urlPrefix + `/poli/workspace/report/fullscreen?$shareKey=${shareKey}`;
+        this.setState({
+          shareUrl: shareUrl
+        });
+      });
+  }
+
+  onDatePickerChange = (name, date) => { 
+    this.setState({
+      [name]: date
+    });
+  }
 
   render() {
     const { t } = this.props;
@@ -522,29 +693,29 @@ class ReportEditView extends React.Component {
       fromReport,
       showControl,
       reportType,
-      isPendingApplyFilters
+      isPendingApplyFilters,
+      isFavourite,
+      isExporting
     } = this.state;
     const autoRefreshStatus = autoRefreshTimerId === '' ? 'OFF' : 'ON';
-    const pendingApplyFiltersStyle = isPendingApplyFilters ? 'button-green' : '';
+    const pendingApplyFiltersStyle = isPendingApplyFilters ? 'font-blue' : '';
 
     const commonButtonPanel = (
       <React.Fragment>
-        <div className="inline-block">
-          <div className="inline-block" style={{marginRight: '8px'}}>
-            {t('Last refreshed')}: {readableLastRefreshed}
-          </div>
-          { autoRefreshStatus === 'OFF' && (
-            <input 
-              className="form-input inline-block"
-              type="text" 
-              name="refreshInterval" 
-              value={this.state.refreshInterval}
-              onChange={this.handleInputChange}
-              style={{width: '50px'}}
-            />
-          )}
+        <div className="inline-block" style={{marginRight: '8px', lineHeight: '32px'}}>
+          {t('Last refreshed')}: {readableLastRefreshed}
         </div>
-        <button className="button square-button button-black" onClick={this.toggleAutoRefresh}>
+        { autoRefreshStatus === 'OFF' && (
+          <input 
+            className="form-input inline-block"
+            type="text" 
+            name="refreshInterval" 
+            value={this.state.refreshInterval}
+            onChange={(event) => this.handleInputChange('refreshInterval', event.target.value)}
+            style={{width: '50px', marginRight: '4px'}}
+          />
+        )}
+        <button className="button square-button flat-button" onClick={this.toggleAutoRefresh}>
           {
             autoRefreshStatus === 'ON' ? 
             (
@@ -555,37 +726,40 @@ class ReportEditView extends React.Component {
             )
           }
         </button>
-        <button className="button square-button ml-4" onClick={this.refresh}>
+        <button className="button square-button flat-button ml-4" onClick={this.refresh}>
           <FontAwesomeIcon icon="redo-alt" size="lg" fixedWidth />
         </button>
 
         { !this.isAutoFilter() && (
-          <button className={`button ml-4 ${pendingApplyFiltersStyle}`} onClick={this.applyFilters}>
+          <button className={`button flat-button ml-4 ${pendingApplyFiltersStyle}`} onClick={this.applyFilters}>
             <FontAwesomeIcon icon="filter" size="lg" fixedWidth /> {t('Apply Filters')}
           </button>
         )}
       </React.Fragment>
     );
 
-    const fullScreenButton = (
-      <button className="button square-button ml-4" onClick={this.fullScreen}>
-        <FontAwesomeIcon icon="tv" size="lg" fixedWidth />
-      </button>
+    // buttons not displayed in full screen view.
+    const fullScreenExcludeButtonPanel = (
+      <React.Fragment>
+        <button className="button square-button flat-button ml-4" onClick={() => this.setState({ showFunctionButtonDialog: true })}>
+          <FontAwesomeIcon icon="ellipsis-h" size="lg" fixedWidth />
+        </button>
+      </React.Fragment>
     );
 
     const inEditModeButtonPanel = (
       <React.Fragment>
-        <button className="button ml-4" onClick={() => this.openComponentEditPanel(null)}>
+        <button className="button flat-button ml-4" onClick={() => this.openComponentEditPanel(null)}>
           <FontAwesomeIcon icon="calendar-plus" size="lg" fixedWidth /> {t('New Component')}
         </button>
-        <button className="button square-button button-red ml-4" onClick={this.deleteReport}>
+        <button className="button square-button flat-button ml-4" onClick={this.deleteReport}>
           <FontAwesomeIcon icon="trash-alt" size="lg" fixedWidth />
         </button>
       </React.Fragment>
     )
 
     const editButton = (
-      <button className="button square-button button-red ml-4" onClick={this.edit}>
+      <button className="button square-button flat-button ml-4" onClick={this.edit}>
         <FontAwesomeIcon icon="edit" size="lg" fixedWidth />
       </button>
     );
@@ -601,10 +775,10 @@ class ReportEditView extends React.Component {
           buttonGroupPanel = (
             <React.Fragment>
               {commonButtonPanel}
-              <button className="button square-button ml-4" onClick={() => this.setState({ showCannedReportPanel: true })}>
+              <button className="button square-button flat-button ml-4" onClick={() => this.setState({ showCannedReportPanel: true })}>
                 <FontAwesomeIcon icon="archive" size="lg" fixedWidth />
               </button>
-              {fullScreenButton}
+              {fullScreenExcludeButtonPanel}
               {editButton}
             </React.Fragment>
           );
@@ -614,15 +788,15 @@ class ReportEditView extends React.Component {
           buttonGroupPanel = (
             <React.Fragment>
               {commonButtonPanel}
-              <button className="button square-button ml-4" onClick={() => this.setState({ showCannedReportPanel: true })}>
+              <button className="button square-button flat-button ml-4" onClick={() => this.setState({ showCannedReportPanel: true })}>
                 <FontAwesomeIcon icon="archive" size="lg" fixedWidth />
               </button>
-              {fullScreenButton}
+              {fullScreenExcludeButtonPanel}
             </React.Fragment>
           );
         } else if (reportType === Constants.CANNED) {
           buttonGroupPanel = (
-            <button className="button square-button button-red ml-4" onClick={this.deleteReport}>
+            <button className="button square-button flat-button ml-4" onClick={this.deleteReport}>
               <FontAwesomeIcon icon="trash-alt" size="lg" fixedWidth />
             </button>
           );
@@ -630,45 +804,72 @@ class ReportEditView extends React.Component {
       }
     }
 
+    /**
+     * <div>
+              <button className="button square-button flat-button ml-4" onClick={this.toggleFavourite}>
+                { isFavourite ? (
+                  <FontAwesomeIcon icon="heart" size="lg" fixedWidth /> 
+                ) : (
+                  <FontAwesomeIcon icon={['far', 'heart']} size="lg" fixedWidth />
+                )}
+              </button>
+            </div>
+            <div>
+              <button className="button square-button flat-button ml-4" onClick={this.openSharePanel}>
+                <FontAwesomeIcon icon="share-square" size="lg" fixedWidth /> Share
+              </button>
+            </div>
+            <div>
+              <button className="button square-button flat-button ml-4" onClick={this.fullScreen}>
+                <FontAwesomeIcon icon="tv" size="lg" fixedWidth /> Full screen
+              </button>
+            </div>
+            <div>
+              <button className="button square-button flat-button ml-4" onClick={this.openExportToPdfPanel}>
+                <FontAwesomeIcon icon="file-pdf" size="lg" fixedWidth /> Export to PDF
+              </button>
+            </div>
+     */
+
     return (
       <React.Fragment>
-        { showControl && (
-          <div className="report-menu-panel row">
-            <div className="float-left">
-              {fromReport && (
-                <div className="report-drillthrough-name" onClick={this.goBackToFromReport}>
-                  <span className="link-label">{fromReport}</span> >
+        <div className="report-menu-panel row">
+          <div className="float-left">
+            {fromReport && (
+              <div className="report-drillthrough-name" onClick={this.goBackToFromReport}>
+                <span className="link-label">{fromReport}</span> >
+              </div>
+            )}
+          </div>
+          <div className="float-left">
+            {
+              isFullScreenView || !isEditMode ?
+              (
+                <div className="report-name">
+                  {this.state.name}
                 </div>
-              )}
-            </div>
-            <div className="float-left">
-              {
-                isFullScreenView || !isEditMode ?
-                (
-                  <div className="report-name">
-                    {this.state.name}
-                  </div>
-                ) :(
-                  <input 
-                    className="form-input report-name-input"
-                    type="text" 
-                    name="name" 
-                    value={this.state.name}
-                    onChange={this.handleInputChange}  
-                  />
-                )
-              }
-            </div>
+              ) :(
+                <input 
+                  className="form-input report-name-input"
+                  type="text" 
+                  name="name" 
+                  value={this.state.name}
+                  onChange={(event) => this.handleInputChange('name', event.target.value)}  
+                />
+              )
+            }
+          </div>
+          { showControl && (
             <div className="float-right">
               {buttonGroupPanel}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        
 
         <ComponentViewPanel 
           ref={this.componentViewPanel} 
           isEditMode={isEditMode}
-          showControl={this.state.showControl}
           reportViewWidth={this.state.reportViewWidth}
           onComponentEdit={this.openComponentEditPanel}
           onStyleValueChange={this.onStyleValueChange}
@@ -703,7 +904,7 @@ class ReportEditView extends React.Component {
               type="text" 
               name="cannedReportName" 
               value={this.state.cannedReportName}
-              onChange={this.handleInputChange} 
+              onChange={(event) => this.handleInputChange('cannedReportName', event.target.value)} 
             />
             <button className="button button-green" onClick={this.saveCannedReport}>
               <FontAwesomeIcon icon="save" size="lg" fixedWidth /> {t('Save')}
@@ -722,6 +923,58 @@ class ReportEditView extends React.Component {
           <button className="button button-red full-width" onClick={this.confirmDelete}>{t('Delete')}</button>
         </Modal>
 
+        <Modal 
+          show={this.state.showSharePanel}
+          onClose={() => this.setState({ showSharePanel: false })}
+          modalClass={'small-modal-panel'}
+          title={t('Share')}>
+          <div className="form-panel">
+            <label>{t('Name')}</label>
+            <div className="form-input bg-grey">{this.state.name}</div>
+
+            <label>{t('Type')}</label>
+            <div className="form-input bg-grey">{this.state.reportType}</div>
+
+            <label style={{marginBottom: '3px'}}>{t('Expiration Date')}</label>
+            <div style={{marginBottom: '8px'}}>
+              <DatePicker 
+                name={'expiredBy'}
+                value={this.state.expiredBy}
+                onChange={this.onDatePickerChange}
+                readOnly={false}
+              />
+            </div>
+
+            { this.state.shareUrl && (
+              <React.Fragment>
+                <label>{t('Share URL')}</label>
+                <div className="form-input word-break-all bg-grey">{this.state.shareUrl}</div>
+              </React.Fragment>
+            )}
+
+            <button className="button button-green full-width" onClick={this.generateShareUrl}>{t('Generate URL')}</button>
+          </div>
+        </Modal>
+
+        <Modal 
+          show={this.state.showExportToPdfPanel}
+          onClose={() => this.setState({ showExportToPdfPanel: false })}
+          modalClass={'small-modal-panel'}
+          title={t('Export To PDF')}>
+          <div className="form-panel">
+            <label>{t('Name')}</label>
+            <input 
+              className="form-input"
+              type="text" 
+              name="pdfName" 
+              value={this.state.pdfName}
+              onChange={(event) => this.handleInputChange('pdfName', event.target.value)} 
+            />
+
+            <button className="button button-green full-width" onClick={this.exportToPdf}>{t('Export')}</button>
+          </div>
+        </Modal>
+
         {isEditMode && (
           <div className="report-side-panel">
             <div className="side-panel-content" style={{margin: '3px 0px'}}>
@@ -736,6 +989,20 @@ class ReportEditView extends React.Component {
               <div className="side-panel-title">{t('General')}</div>
 
               <div className="side-panel-content">
+                <div className="row side-panel-content-row" style={{marginBottom: '5px'}}>
+                  <div className="float-left">{t('Project')}</div>
+                  <div className="float-right">
+                    <input 
+                      className="side-panel-input"
+                      type="text" 
+                      name="project" 
+                      value={this.state.project}
+                      onChange={(event) => this.handleInputChange('project', event.target.value)} 
+                      style={{width: '80px'}}
+                    />
+                  </div>
+                </div>
+
                 <div className="row side-panel-content-row" style={{marginBottom: '5px'}}>
                   <div className="float-left">{t('Fixed Width')}</div>
                   <div className="float-right">
@@ -811,6 +1078,40 @@ class ReportEditView extends React.Component {
             </div>
           </div>
         )}
+
+        {isExporting && (
+          <div className="exporting-overlay">
+            <div className="exporting-panel">
+              <div className="exporting-panel-title">{t('Exporting...')}</div>
+              <FontAwesomeIcon icon="circle-notch" spin={true} size="2x" />
+            </div>
+          </div>
+        )}
+
+        <DropdownDialog 
+          show={this.state.showFunctionButtonDialog}
+          onClose={() => this.setState({ showFunctionButtonDialog: false })}
+          >
+          <div className="form-panel">
+            <button className="button square-button flat-button ml-4" onClick={this.toggleFavourite}>
+              { isFavourite ? (
+                <FontAwesomeIcon icon="heart" size="lg" fixedWidth />
+              ) : (
+                <FontAwesomeIcon icon={['far', 'heart']} size="lg" fixedWidth />
+              )}
+            </button>
+            <button className="button square-button flat-button ml-4" onClick={this.openSharePanel}>
+              <FontAwesomeIcon icon="share-square" size="lg" fixedWidth />
+            </button>
+            <button className="button square-button flat-button ml-4" onClick={this.fullScreen}>
+              <FontAwesomeIcon icon="tv" size="lg" fixedWidth />
+            </button>
+            <button className="button square-button flat-button ml-4" onClick={this.openExportToPdfPanel}>
+              <FontAwesomeIcon icon="file-pdf" size="lg" fixedWidth />
+            </button>
+          </div>
+        </DropdownDialog>
+        
 
       </React.Fragment>
     )

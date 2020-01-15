@@ -1,9 +1,12 @@
 package com.shzlw.poli.rest;
 
 import com.shzlw.poli.dao.CannedReportDao;
+import com.shzlw.poli.dao.SharedReportDao;
 import com.shzlw.poli.dao.UserDao;
+import com.shzlw.poli.dao.UserFavouriteDao;
 import com.shzlw.poli.model.User;
 import com.shzlw.poli.model.UserAttribute;
+import com.shzlw.poli.service.SharedReportService;
 import com.shzlw.poli.service.UserService;
 import com.shzlw.poli.util.Constants;
 import org.slf4j.Logger;
@@ -33,6 +36,15 @@ public class UserWs {
 
     @Autowired
     CannedReportDao cannedReportDao;
+
+    @Autowired
+    UserFavouriteDao userFavouriteDao;
+
+    @Autowired
+    SharedReportDao sharedReportDao;
+
+    @Autowired
+    SharedReportService sharedReportService;
 
     @RequestMapping(method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
     @Transactional(readOnly = true)
@@ -108,6 +120,9 @@ public class UserWs {
         }
 
         userService.invalidateSessionUserCache(savedUser.getSessionKey());
+        sharedReportService.invalidateSharedLinkInfoCacheByUserId(userId);
+        sharedReportDao.deleteByUserId(userId);
+        userFavouriteDao.deleteByUserId(userId);
         cannedReportDao.deleteByUserId(userId);
         userDao.deleteUserAttributes(userId);
         userDao.deleteUserGroups(userId);

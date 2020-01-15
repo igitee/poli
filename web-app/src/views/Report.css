@@ -28,7 +28,6 @@
   margin: 5px 0px;
   padding: 5px 8px;
   color: #8993A4;
-  line-height: 26px;
   cursor: pointer;
 }
 
@@ -38,8 +37,8 @@
 
 .report-menu-item-active {
   border-left: 3px solid #0065FF;
-  background-color: #1E1E1E;
-  color: #FFFFFF;
+  color: #0065FF;
+  font-weight: 700;
 }
 
 .report-content-component-panel {
@@ -102,4 +101,38 @@
   background-color: #4B4B4B; 
   color: #DFDFDF;
   z-index: 60;
+}
+
+.project-row {
+  margin: 5px 0px;
+  padding: 3px 0px;
+  cursor: pointer;
+}
+
+.exporting-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 160px;
+  height: 90px;
+  margin-top: -45px;
+  margin-left: -80px;
+  text-align: center;
+}
+
+.exporting-panel-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0px 0px 15px 0px;
+  color: #FFFFFF;
+}
+
+.exporting-overlay {
+  background: rgba(0, 0, 0, 0.6);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 150;
 }

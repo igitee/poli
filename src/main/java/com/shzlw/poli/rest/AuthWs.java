@@ -2,6 +2,7 @@ package com.shzlw.poli.rest;
 
 import com.shzlw.poli.dao.UserDao;
 import com.shzlw.poli.dto.LoginResponse;
+import com.shzlw.poli.model.SharedReport;
 import com.shzlw.poli.model.User;
 import com.shzlw.poli.service.UserService;
 import com.shzlw.poli.util.Constants;
@@ -29,6 +30,7 @@ public class AuthWs {
     public static final String INVALID_USERNAME_PASSWORD = "Invalid username or password.";
     public static final String USE_MORE_CHARACTERS = "Use 8 or more characters.";
     public static final String INVALID_API_KEY = "Invalid api key.";
+    public static final String INVALID_SHARE_KEY = "Invalid share key.";
 
     @RequestMapping(value="/login/user", method = RequestMethod.POST)
     @Transactional
@@ -58,7 +60,7 @@ public class AuthWs {
         sessionKeyCookie.setPath("/");
         response.addCookie(sessionKeyCookie);
 
-        return LoginResponse.ofSucess(user.getUsername(), user.getSysRole(), isTempPassword);
+        return LoginResponse.ofSuccess(user.getUsername(), user.getSysRole(), isTempPassword);
     }
 
     @RequestMapping(value="/login/cookie", method= RequestMethod.POST)
@@ -75,7 +77,7 @@ public class AuthWs {
 
         user.setUserAttributes(userDao.findUserAttributes(user.getId()));
         userService.newOrUpdateUser(user, user.getSessionKey(), sessionKey);
-        return LoginResponse.ofSucess(user.getUsername(), user.getSysRole(), false);
+        return LoginResponse.ofSuccess(user.getUsername(), user.getSysRole(), false);
     }
 
     @RequestMapping(value="/login/apikey", method= RequestMethod.POST)
@@ -87,7 +89,19 @@ public class AuthWs {
             return LoginResponse.ofError(INVALID_API_KEY);
         }
 
-        return LoginResponse.ofSucess(user.getUsername(), user.getSysRole(), false);
+        return LoginResponse.ofSuccess(user.getUsername(), user.getSysRole(), false);
+    }
+
+    @RequestMapping(value="/login/sharekey", method= RequestMethod.POST)
+    @Transactional
+    public LoginResponse loginByShareKey(@RequestBody SharedReport sharedReport) {
+        String shareKey = sharedReport.getShareKey();
+        User user = userDao.findByShareKey(shareKey);
+        if (user == null) {
+            return LoginResponse.ofError(INVALID_SHARE_KEY);
+        }
+
+        return LoginResponse.ofSuccess(user.getUsername(), user.getSysRole(), false);
     }
 
     @RequestMapping(value="/logout", method= RequestMethod.GET)

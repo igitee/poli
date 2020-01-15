@@ -82,6 +82,53 @@ Notes
 * Filters are not allowed to change values in canned report.
 * Users can only create/view/delete canned report created by themselves.
 
+## Share
+
+The report can be shared through a link to public recipients who don't have access to Poli. 
+
+Click the share button. 
+
+![share button](_images/screenshots/share_button.jpg)
+
+Select the expiration date and press generate button. A shared report URL with a unique shared key will be generated.
+
+![share dialog](_images/screenshots/share_dialog.jpg)
+
+The shared report history can be viewed and managed under the event menu.
+
+![share event](_images/screenshots/share_event.jpg)
+
+## Favourite
+
+Favourite list provides a quick access to the reports that are marked as favourite. Toggling the favourite button(heart) can add/remove report to/rom the favourite list.
+
+![favourite](_images/screenshots/favourite.jpg)
+
+## Export to PDF
+
+The report can be exported to a PDF file. The PDF export server is optional and available under export-server folder. Nodejs is required to start it.
+
+  ```sh
+  cd export-server
+  npm install
+  
+  -- Start the server
+  node poli-export-server.js
+  ```
+
+A new config value needs to be added in the poli.properties.
+
+  ```
+  poli.export-server-url=http://127.0.0.1:6689/pdf
+  ```
+Open the report. Click the export to pdf button.
+
+![export_to_pdf_button](_images/screenshots/export_to_pdf_button.jpg)
+
+Rename the PDF file abd hit export button. A PDF file should be downloaded. If the export server is not up, an empty PDF file might be generated.
+
+![export_to_pdf_dialog](_images/screenshots/export_to_pdf_dialog.jpg)
+
 ## Access permissions
 
 Reports can be edited by Admin/Developer users, associated with a Group and viewed by all users. Check [User Management](user-management) for more details.

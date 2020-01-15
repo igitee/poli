@@ -1,6 +1,8 @@
 package com.shzlw.poli.dao;
 
 import com.shzlw.poli.model.CannedReport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,6 +19,8 @@ import java.util.List;
 
 @Repository
 public class CannedReportDao {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(CannedReportDao.class);
 
     @Autowired
     JdbcTemplate jt;
@@ -47,11 +51,11 @@ public class CannedReportDao {
         try {
             CannedReport cannedReport =  jt.queryForObject(sql, new Object[]{ id }, (rs, i) -> {
                 CannedReport r = new CannedReport();
-                r.setId(rs.getLong("id"));
-                r.setCreatedBy(rs.getString("created_by"));
-                r.setCreatedAt(rs.getLong("created_at"));
-                r.setName(rs.getString("name"));
-                r.setData(rs.getString("data"));
+                r.setId(rs.getLong(CannedReport.ID));
+                r.setCreatedBy(rs.getString(CannedReport.CREATED_BY));
+                r.setCreatedAt(rs.getLong(CannedReport.CREATED_AT));
+                r.setName(rs.getString(CannedReport.NAME));
+                r.setData(rs.getString(CannedReport.DATA));
                 return r;
             });
             return cannedReport;
@@ -62,15 +66,15 @@ public class CannedReportDao {
 
     public long insert(long userId, long createdAt, String name, String data) {
         String sql = "INSERT INTO p_canned_report(user_id, created_at, name, data) "
-                    + "VALUES(:userId, :createdAt, :name, :data)";
+                    + "VALUES(:user_id, :created_at, :name, :data)";
         MapSqlParameterSource params = new MapSqlParameterSource();
-        params.addValue("userId", userId);
-        params.addValue("createdAt", createdAt);
-        params.addValue("name", name);
-        params.addValue("data", data);
+        params.addValue(CannedReport.USER_ID, userId);
+        params.addValue(CannedReport.CREATED_AT, createdAt);
+        params.addValue(CannedReport.NAME, name);
+        params.addValue(CannedReport.DATA, data);
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
-        npjt.update(sql, params, keyHolder, new String[] { "id" });
+        npjt.update(sql, params, keyHolder, new String[] { CannedReport.ID });
         return keyHolder.getKey().longValue();
     }
 
@@ -88,10 +92,10 @@ public class CannedReportDao {
         @Override
         public CannedReport mapRow(ResultSet rs, int i) throws SQLException {
             CannedReport r = new CannedReport();
-            r.setId(rs.getLong("id"));
-            r.setCreatedBy(rs.getString("created_by"));
-            r.setCreatedAt(rs.getLong("created_at"));
-            r.setName(rs.getString("name"));
+            r.setId(rs.getLong(CannedReport.ID));
+            r.setCreatedBy(rs.getString(CannedReport.CREATED_BY));
+            r.setCreatedAt(rs.getLong(CannedReport.CREATED_AT));
+            r.setName(rs.getString(CannedReport.NAME));
             return r;
         }
     }

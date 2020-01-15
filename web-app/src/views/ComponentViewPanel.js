@@ -29,7 +29,11 @@ class ComponentViewPanel extends React.Component {
       showGridlines: false,
       showConfirmDeletionPanel: false,
       objectToDelete: {},
-      selectedComponentId: 0
+      selectedComponentId: 0,
+      showExportCsvPanel: false,
+      csvFilename: '',
+      csvColumns: [],
+      csvData: []
     };
   }
 
@@ -49,7 +53,13 @@ class ComponentViewPanel extends React.Component {
     }
   }
 
-  handleInputChange = (name, value, isNumber = false) => {
+  handleInputChange = (event) => {
+    this.setState({
+      [event.target.name]: event.target.value
+    });
+  }
+
+  handleComponentInputChange = (name, value, isNumber = false) => {
     let val = isNumber ? (parseInt(value, 10) || 0) : value;
     const {
       selectedComponentId,
@@ -124,25 +134,50 @@ class ComponentViewPanel extends React.Component {
     return Math.floor(num * BASE_WIDTH / gridWidth);
   }
 
-  fetchComponents = (reportId, viewWidth) => {
+  fetchComponents = (reportId, viewWidth, urlFilterParams) => {
     if (reportId === null) {
       return;
     }
     axios.get(`/ws/component/report/${reportId}`)
       .then(res => {
         const result = res.data;
-        this.buildViewPanel(result, viewWidth, true);
+        this.buildViewPanel(result, viewWidth, true, urlFilterParams);
       });
   }
 
-  buildViewPanel = (components, viewWidth, isAdhoc) => {
+  buildViewPanel = (components, viewWidth, isAdhoc, urlFilterParams) => {
     // Reorganize the filter component to push the datepicker filters to the end of the array so
     // they will be rendered later. Among them, the one with larger Y value should be rendered first.
     let reorderedComponents = [];
     const datepickers = [];
     for (let i = 0; i < components.length; i++) {
       const component = components[i];
-      if (component.type === Constants.FILTER && component.subType === Constants.DATE_PICKER) {
+      const {
+        type,
+        subType,
+        data = {}
+      } = component;
+      // Turn defaultParamValue into value to display default value for the filters.
+      if (type === Constants.FILTER) {
+        const {
+          defaultParamValue
+        } = data;
+        if (defaultParamValue) {
+          if (subType === Constants.DATE_PICKER) {
+          // For example, defaultParamValue = 2019-01-01
+            const dateArray = defaultParamValue.split('-');
+            if (dateArray.length >= 3) {
+              var date = new Date(dateArray[0], dateArray[1] - 1, dateArray[2]); 
+              const epoch = Math.round((date).getTime());
+              component.value = epoch;
+            }
+          } else if (subType === Constants.SINGLE_VALUE || subType === Constants.SLICER) {
+            component.value = defaultParamValue;
+          }
+        }
+      }
+
+      if (type === Constants.FILTER && subType === Constants.DATE_PICKER) {
         datepickers.push(component);
       } else {
         reorderedComponents.push(component);
@@ -156,8 +191,11 @@ class ComponentViewPanel extends React.Component {
     }, () => {
       this.resizeGrid(viewWidth);
       if (isAdhoc) {
-        this.queryFilters();
-        this.queryCharts();
+        const promises = this.queryFilters();
+        // Wait for the filters to load all data. Then query charts.
+        axios.all(promises).then(results => {
+          this.queryCharts(urlFilterParams);
+        });        
       }
     });
   }
@@ -173,7 +211,7 @@ class ComponentViewPanel extends React.Component {
     }
     return newComponents;
   }
- 
+
   queryCharts(urlFilterParams = []) {
     // Append the url filter params to the existing filer params if it exists.
     const filterParams = this.getFilterParams().concat(urlFilterParams);
@@ -184,13 +222,14 @@ class ComponentViewPanel extends React.Component {
         type,
       } = components[i];
       if (type === Constants.CHART) {
-        this.queryChart(id, filterParams);
+        this.queryChart(id, filterParams)
       }
     }
   }
 
   queryFilters() {
     const { components } = this.state;
+    const promises = [];
     for (let i = 0; i < components.length; i++) {
       const {
         id,
@@ -198,9 +237,10 @@ class ComponentViewPanel extends React.Component {
         subType
       }  = components[i];
       if (type === Constants.FILTER) {
-        this.queryFilter(id, subType);
+        promises.push(this._queryFilter(id, subType));
       }
     }
+    return promises;
   }
 
   queryChart(componentId, filterParams) {
@@ -232,10 +272,10 @@ class ComponentViewPanel extends React.Component {
       });
   }
 
-  queryFilter(componentId, subType) {
+  _queryFilter(componentId, subType) {
     const { components } = this.state;
     if (subType === Constants.SLICER) {
-      axios.post(`/ws/jdbcquery/component/${componentId}`, [])
+      return axios.post(`/ws/jdbcquery/component/${componentId}`, [])
         .then(res => {
           const queryResult = res.data;
           const queryResultData = Util.jsonToArray(queryResult.data);
@@ -251,6 +291,19 @@ class ComponentViewPanel extends React.Component {
           }
           const index = components.findIndex(w => w.id === componentId);
           const newComponents = [...components];
+          const value = newComponents[index].value;
+          if (value) {
+            const defaultValues = value.split(',');
+            for (let i = 0; i < defaultValues.length; i++) {
+              for (let j = 0; j < checkBoxes.length; j++) {
+                if (checkBoxes[j].value === defaultValues[i]) {
+                  checkBoxes[j].isChecked = true;
+                  break;
+                }
+              }
+            }
+          }
+
           newComponents[index].queryResult = queryResult;
           newComponents[index].checkBoxes = checkBoxes;
           this.setState({
@@ -272,12 +325,9 @@ class ComponentViewPanel extends React.Component {
           });
         });
     } else if (subType === Constants.SINGLE_VALUE) {
-      const index = components.findIndex(w => w.id === componentId);
-      const newComponents = [...components];
-      newComponents[index].value = '';
-      this.setState({
-        components: newComponents
-      });
+
+    } else if (subType === Constants.DATE_PICKER) {
+
     }
   }
 
@@ -388,7 +438,11 @@ class ComponentViewPanel extends React.Component {
     for (let i = 0; i < components.length; i++) {
       const component = components[i];
       if (component.type === Constants.FILTER) {
-        const { subType } = component;
+        const { 
+          subType,
+          value,
+          data = {} 
+        } = component;
         const filterParam = {};
         if (subType === Constants.SLICER) {
           const { 
@@ -406,13 +460,11 @@ class ComponentViewPanel extends React.Component {
             filterParam.remark = 'select all';
           }
         } else if (subType === Constants.SINGLE_VALUE) {
-          const { value } = component;
           filterParam.value = value;
         } else if (subType === Constants.DATE_PICKER) {
-          const { value } = component;
           let dateStr = '';
           if (value) {
-            const date = new Date(parseInt(value, 10) * 1000);
+            const date = new Date(parseInt(value, 10));
             const year = date.getFullYear();
             const month = date.getMonth() + 1;
             const day = date.getDate();
@@ -420,8 +472,8 @@ class ComponentViewPanel extends React.Component {
           }
           filterParam.value = dateStr;
         }
-        filterParam.param = component.data.queryParameter;
-        filterParam.type = component.subType;
+        filterParam.param = data.queryParameter;
+        filterParam.type = subType;
         filterParams.push(filterParam);
       }
     }
@@ -460,7 +512,7 @@ class ComponentViewPanel extends React.Component {
           if (type === Constants.CHART) {
             this.queryChart(id, filterParams);
           } else if (type === Constants.FILTER) {
-            this.queryFilter(id, subType);
+            this._queryFilter(id, subType);
           }
         });
       });
@@ -527,7 +579,7 @@ class ComponentViewPanel extends React.Component {
           return;
         }
         x--;
-        this.handleInputChange('x', x, true);
+        this.handleComponentInputChange('x', x, true);
         break;
       case 38:
         // Up
@@ -535,7 +587,7 @@ class ComponentViewPanel extends React.Component {
           return;
         }
         y--;
-        this.handleInputChange('y', y, true);
+        this.handleComponentInputChange('y', y, true);
         break;
       case 39:
         // Right
@@ -543,7 +595,7 @@ class ComponentViewPanel extends React.Component {
           return;
         }
         x++;
-        this.handleInputChange('x', x, true);
+        this.handleComponentInputChange('x', x, true);
         break;
       case 40:
         // Down
@@ -551,7 +603,7 @@ class ComponentViewPanel extends React.Component {
           return;
         }
         y++;
-        this.handleInputChange('y', y, true);
+        this.handleComponentInputChange('y', y, true);
         break;
       default:
         return;
@@ -571,17 +623,68 @@ class ComponentViewPanel extends React.Component {
     return selectedComponent;
   }
 
+  onComponentCsvExport = (title = 'poli', columns = [], data = []) => {
+    this.setState({
+      csvFilename: title,
+      showExportCsvPanel: true,
+      csvColumns: columns,
+      csvData: data
+    });
+  }
+
+  downloadCsv = () => {
+    const {
+      csvFilename: title,
+      csvColumns: columns,
+      csvData: data
+    } = this.state;
+
+    let csvHeader = '';
+    for (let i = 0; i < columns.length; i++) {
+      if (i !== 0) {
+          csvHeader += ',';
+      }
+      csvHeader += columns[i].name;
+    }
+
+    let csvBody = '';
+    for (let i = 0; i < data.length; i++) {
+        const row = Object.values(data[i]);
+        csvBody += row.join(',') + '\r\n';
+    } 
+
+    const csvData = csvHeader + '\r\n' + csvBody;
+    const filename = title + '.csv';
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    if (link.download !== undefined) { 
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    this.setState({
+      csvFilename: '',
+      showExportCsvPanel: false,
+      csvColumns: [],
+      csvData: []
+    });
+  }
+
   render() {
     const { t } = this.props;
 
     const { 
-      reportViewWidth,
-      showControl
+      reportViewWidth
     } = this.props;
 
     const selectedComponent = this.getSelectedComponent();
 
-    const top = showControl ? '50px' : '10px';
+    const top = '50px';
     const style = {
       top: top,
       width: reportViewWidth + 'px'
@@ -604,6 +707,7 @@ class ComponentViewPanel extends React.Component {
           onComponentRemove={this.openConfirmDeletionPanel} 
           onComponentFilterInputChange={this.onComponentFilterInputChange}
           onComponentContentClick={this.props.onComponentContentClick}
+          onComponentCsvExport={this.onComponentCsvExport}
         />
         
         <Modal 
@@ -615,6 +719,26 @@ class ComponentViewPanel extends React.Component {
             {t('Are you sure you want to delete this component?')}
           </div>
           <button className="button button-red full-width" onClick={this.confirmDelete}>{t('Delete')}</button>
+        </Modal>
+
+        <Modal 
+          show={this.state.showExportCsvPanel}
+          onClose={() => this.setState({ showExportCsvPanel: false })}
+          modalClass={'small-modal-panel'} 
+          title={t('Export as CSV')} >
+          <div className="form-panel">
+            <label>{t('File Name')}</label>
+            <input 
+              className="form-input"
+              type="text" 
+              name="csvFilename" 
+              value={this.state.csvFilename}
+              onChange={this.handleInputChange} 
+            />
+            <button className="button button-green" onClick={this.downloadCsv}>
+              <FontAwesomeIcon icon="file-download" size="lg" fixedWidth /> {t('Export')}
+            </button>
+          </div>
         </Modal>
 
         {selectedComponent && (
@@ -642,7 +766,7 @@ class ComponentViewPanel extends React.Component {
                       type="text" 
                       name="title" 
                       value={selectedComponent.title}
-                      onChange={(event) => this.handleInputChange('title', event.target.value)} 
+                      onChange={(event) => this.handleComponentInputChange('title', event.target.value)} 
                     />
                   </div>
 
@@ -714,7 +838,7 @@ class ComponentViewPanel extends React.Component {
                     type="text" 
                     name="x" 
                     value={selectedComponent.x}
-                    onChange={(event) => this.handleInputChange('x', event.target.value, true)}
+                    onChange={(event) => this.handleComponentInputChange('x', event.target.value, true)}
                   />
                 </div>
               </div>
@@ -727,7 +851,7 @@ class ComponentViewPanel extends React.Component {
                     type="text" 
                     name="y" 
                     value={selectedComponent.y}
-                    onChange={(event) => this.handleInputChange('y', event.target.value, true)}
+                    onChange={(event) => this.handleComponentInputChange('y', event.target.value, true)}
                   />
                 </div>
               </div>
@@ -740,7 +864,7 @@ class ComponentViewPanel extends React.Component {
                     type="text" 
                     name="width" 
                     value={selectedComponent.width}
-                    onChange={(event) => this.handleInputChange('width', event.target.value, true)}
+                    onChange={(event) => this.handleComponentInputChange('width', event.target.value, true)}
                   />
                 </div>
               </div>
@@ -753,7 +877,7 @@ class ComponentViewPanel extends React.Component {
                     type="text" 
                     name="height" 
                     value={selectedComponent.height}
-                    onChange={(event) => this.handleInputChange('height', event.target.value, true)}
+                    onChange={(event) => this.handleComponentInputChange('height', event.target.value, true)}
                   />
                 </div>
               </div>

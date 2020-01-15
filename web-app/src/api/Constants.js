@@ -20,7 +20,8 @@ export const HEATMAP = 'heatmap';
 export const TREEMAP = 'treemap';
 export const FUNNEL = 'funnel';
 export const CARD = 'card';
-export const CHART_TYPES = [TABLE, PIE, LINE, BAR, AREA, CARD, FUNNEL, TREEMAP, HEATMAP];
+export const KANBAN = 'kanban';
+export const CHART_TYPES = [TABLE, PIE, LINE, BAR, AREA, CARD, FUNNEL, TREEMAP, HEATMAP, KANBAN];
 
 export const IMAGE = 'image';
 export const TEXT = 'text';
@@ -57,4 +58,6 @@ export const CANNED = 'canned';
 
 export const DEFAULT_MIN_COLOR = 'rgba(222, 53, 11, 1)';
 export const DEFAULT_MAX_COLOR = 'rgba(0, 135, 90, 1)';
+
+export const REPORT = 'report';
 

@@ -9,13 +9,14 @@ import * as Constants from '../api/Constants';
 
 import GridDraggable from './GridDraggable';
 import GridResizable from './GridResizable';
-import Table from './Table';
+import Table from './table/Table';
 import Slicer from './filters/Slicer';
 import ImageBox from './widgets/ImageBox';
 import Iframe from './widgets/Iframe';
 import InnerHtml from './widgets/InnerHtml';
 import DatePicker from './filters/DatePicker';
 import Card from './widgets/Card';
+import Kanban from '../components/kanban/Kanban';
 
 class GridItem extends React.Component {
 
@@ -83,37 +84,7 @@ class GridItem extends React.Component {
       return;
     }
 
-    this.convertCsv(title, columns, queryResultData);
-  }
-
-  convertCsv = (title = 'poli', columns = [], data = []) => {
-    let csvHeader = '';
-    for (let i = 0; i < columns.length; i++) {
-      if (i !== 0) {
-          csvHeader += ',';
-      }
-      csvHeader += columns[i].name;
-    }
-
-    let csvBody = '';
-    for (let i = 0; i < data.length; i++) {
-        const row = Object.values(data[i]);
-        csvBody += row.join(',') + '\r\n';
-    } 
-
-    const csvData = csvHeader + '\r\n' + csvBody;
-    const filename = title + '.csv';
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    if (link.download !== undefined) { 
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    this.props.onComponentCsvExport(title, columns, queryResultData);
   }
 
   removeComponent = (componentId) => {
@@ -187,7 +158,7 @@ class GridItem extends React.Component {
   }
 
   onDatePickerChange = (componentId, date) => { 
-    const epoch = Math.round((date).getTime() / 1000);
+    const epoch = Math.round((date).getTime());
     const data = {
       value: epoch
     };
@@ -230,8 +201,21 @@ class GridItem extends React.Component {
       if (subType === Constants.TABLE) {
         const { 
           defaultPageSize = 10,
-          showPagination = true
+          showPagination = true,
+          fixedHeader = false,
+          columnConfigs = []
         } = data;
+
+        let tableHeight = null;
+        if (fixedHeader) {
+          const {
+            height,
+            style = {}
+          } = this.props;
+          const { showTitle = true } = style; 
+          tableHeight = showTitle ? height - 30 : height - 2;
+        }
+
         componentItem = (
           <Table
             data={queryResultData}
@@ -240,6 +224,7 @@ class GridItem extends React.Component {
             drillThrough={drillThrough}
             showPagination={showPagination}
             onTableTdClick={this.onTableTdClick}
+            height={tableHeight}
           />
         );
       } else if (subType === Constants.CARD) {
@@ -256,6 +241,19 @@ class GridItem extends React.Component {
             value={value}
           />
         );
+      } else if (subType === Constants.KANBAN) {
+        const { 
+          groupByField = '',
+          blockTitleField = ''
+        } = data;
+        componentItem = (
+          <Kanban 
+            data={queryResultData} 
+            groupByField={groupByField} 
+            blockTitleField={blockTitleField} 
+          />
+        );
+        
       } else {
         const chartOption = EchartsApi.getChartOption(subType, queryResultData, data, title);
         componentItem = (
@@ -295,7 +293,7 @@ class GridItem extends React.Component {
           </div>
         );
       } else if (subType === Constants.DATE_PICKER) {
-        const date = value ? new Date(parseInt(value, 10) * 1000) : new Date();
+        const date = value ? new Date(parseInt(value, 10)) : new Date();
         componentItem = (
           <div className="grid-box-content-panel">
             <DatePicker 
@@ -464,11 +462,11 @@ class GridItem extends React.Component {
           </div>
         )}
 
-        {readModeButtonGroup}
-        
         <div className="grid-box-content" style={contentStyle}>
           {this.renderComponentContent()}
         </div>
+
+        {readModeButtonGroup}
 
         { isEditMode && (
           <GridResizable 
